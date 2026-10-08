@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { Loader2, MapPin, User, Trophy, ChevronLeft, Trash2 } from 'lucide-react'
-import { useEvento, eliminaEvento } from '@/hooks/useEvento'
+import { Loader2, MapPin, User, Trophy, ChevronLeft, Ban, Trash2 } from 'lucide-react'
+import { useEvento, eliminaEvento, eliminaEventoDefinitivo } from '@/hooks/useEvento'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfilo } from '@/hooks/useProfilo'
 import { formattaDataEstesa, eventoPassato } from '@/lib/format'
@@ -16,9 +16,14 @@ export default function EventoDettaglio() {
   const { user } = useAuth()
   const { isAutista, isAdmin } = useProfilo()
   const { evento, viaggi, caricamento, erroreNonTrovato, ricarica } = useEvento(id)
-  const [confermaElimina, setConfermaElimina] = useState(false)
-  const [eliminazione, setEliminazione] = useState(false)
-  const [erroreElimina, setErroreElimina] = useState<string | null>(null)
+  // 'annulla' (chi ha creato l'evento o un admin, resta visibile come
+  // annullato) e 'elimina' (solo admin, sparisce per sempre) sono due azioni
+  // distinte con permessi diversi — prima erano un'unica azione che decideva
+  // da sola quale delle due fare, e chi aveva solo il permesso di annullare
+  // poteva ritrovarsi a eliminare per sempre senza volerlo.
+  const [azione, setAzione] = useState<'annulla' | 'elimina' | null>(null)
+  const [eseguendo, setEseguendo] = useState(false)
+  const [erroreAzione, setErroreAzione] = useState<string | null>(null)
 
   if (erroreNonTrovato) {
     return (
@@ -39,18 +44,19 @@ export default function EventoDettaglio() {
 
   const passato = eventoPassato(evento.data)
   const linkMaps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(evento.luogo)}`
-  const possoEliminare = evento.creato_da === user?.id || isAdmin
-  const nessunoConfermato = !(viaggi ?? []).some((v) => v.partecipazioni.some((p) => p.stato === 'confermata'))
+  const possoAnnullare = evento.creato_da === user?.id || isAdmin
 
-  async function elimina() {
-    setErroreElimina(null)
-    setEliminazione(true)
+  async function esegui() {
+    if (!azione) return
+    setErroreAzione(null)
+    setEseguendo(true)
     try {
-      await eliminaEvento(evento!.id)
+      if (azione === 'annulla') await eliminaEvento(evento!.id)
+      else await eliminaEventoDefinitivo(evento!.id)
       navigate('/')
     } catch (e) {
-      setErroreElimina(e instanceof Error ? e.message : 'Non sono riuscito a eliminare l\'evento.')
-      setEliminazione(false)
+      setErroreAzione(e instanceof Error ? e.message : 'Non sono riuscito a completare l\'operazione.')
+      setEseguendo(false)
     }
   }
 
@@ -63,44 +69,51 @@ export default function EventoDettaglio() {
         >
           <ChevronLeft size={18} /> Indietro
         </button>
-        {possoEliminare && !confermaElimina && (
-          <button
-            onClick={() => setConfermaElimina(true)}
-            className="text-text-muted active:scale-90 transition-transform duration-150"
-            aria-label={nessunoConfermato ? 'Elimina evento' : 'Annulla evento'}
-          >
-            <Trash2 size={18} />
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {possoAnnullare && !azione && evento.stato !== 'annullato' && (
+            <button
+              onClick={() => setAzione('annulla')}
+              className="text-text-muted active:scale-90 transition-transform duration-150"
+              aria-label="Annulla evento"
+            >
+              <Ban size={18} />
+            </button>
+          )}
+          {isAdmin && !azione && (
+            <button
+              onClick={() => setAzione('elimina')}
+              className="text-danger active:scale-90 transition-transform duration-150"
+              aria-label="Elimina definitivamente (admin)"
+            >
+              <Trash2 size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
-      {confermaElimina && (
+      {azione && (
         <div className="card mb-4 space-y-2">
           <p className="text-sm text-center">
-            {nessunoConfermato
-              ? `Eliminare del tutto "${evento.nome}"? Spariscono anche tutti i suoi viaggi. Non si può tornare indietro.`
-              : `Annullare "${evento.nome}"? Qualcuno è già confermato su un viaggio: resterà visibile come annullato e tutti verranno avvisati.`}
+            {azione === 'annulla'
+              ? `Annullare "${evento.nome}"? Resterà visibile come annullato e tutti verranno avvisati.`
+              : `Eliminare DEFINITIVAMENTE "${evento.nome}"? Sparisce senza lasciare traccia, insieme a tutti i suoi viaggi — non si può annullare l'operazione.`}
           </p>
-          {erroreElimina && <p className="text-danger text-sm text-center">{erroreElimina}</p>}
+          {erroreAzione && <p className="text-danger text-sm text-center">{erroreAzione}</p>}
           <div className="flex gap-2">
-            <button
-              className="btn-secondary flex-1"
-              onClick={() => setConfermaElimina(false)}
-              disabled={eliminazione}
-            >
+            <button className="btn-secondary flex-1" onClick={() => setAzione(null)} disabled={eseguendo}>
               No, torna indietro
             </button>
             <button
               className="flex-1 rounded-xl bg-danger text-white font-semibold py-2.5 active:scale-95 transition-transform duration-150 disabled:opacity-50"
-              onClick={elimina}
-              disabled={eliminazione}
+              onClick={esegui}
+              disabled={eseguendo}
             >
-              {eliminazione ? (
+              {eseguendo ? (
                 <Loader2 size={16} className="animate-spin mx-auto" />
-              ) : nessunoConfermato ? (
-                'Sì, elimina'
-              ) : (
+              ) : azione === 'annulla' ? (
                 'Sì, annulla'
+              ) : (
+                'Sì, elimina per sempre'
               )}
             </button>
           </div>

@@ -160,8 +160,16 @@ export async function eliminaViaggio(viaggioId: string) {
   if (error) throw new Error(tradurriErrore(error.message))
 }
 
+/** Annulla l'evento: resta visibile con il badge "Annullato", tutti vengono
+ * avvisati. Disponibile a chi ha creato l'evento o a un admin. */
 export async function eliminaEvento(eventoId: string) {
   const { error } = await supabase.rpc('elimina_evento', { p_evento_id: eventoId })
+  if (error) throw new Error(tradurriErrore(error.message))
+}
+
+/** Elimina l'evento per sempre, senza lasciare traccia. Solo un admin. */
+export async function eliminaEventoDefinitivo(eventoId: string) {
+  const { error } = await supabase.rpc('elimina_evento_definitivo', { p_evento_id: eventoId })
   if (error) throw new Error(tradurriErrore(error.message))
 }
 

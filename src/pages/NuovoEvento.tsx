@@ -16,7 +16,11 @@ interface EventoSimile {
   luogo: string
 }
 
-type Mezzo = TipoViaggio | 'dopo'
+// L'auto è spezzata in due scelte esplicite (come in AggiungiViaggio.tsx):
+// "personale" (confermata subito, solo per un autista) e "richiesta" (in
+// attesa che un autista qualsiasi la prenda in carico — anche un autista può
+// volerla, per fare il passeggero questa volta).
+type Mezzo = Exclude<TipoViaggio, 'auto'> | 'auto_personale' | 'auto_richiesta' | 'dopo'
 
 export default function NuovoEvento() {
   const navigate = useNavigate()
@@ -60,9 +64,11 @@ export default function NuovoEvento() {
     setErrore(null)
 
     try {
-      // Se passeggero propone un'auto, l'evento nasce "proposto"; in ogni
-      // altro caso nasce subito "attivo" (vedi SPEC §4.1).
-      const stato = !isAutista && mezzo === 'auto' ? 'proposto' : 'attivo'
+      // Se l'auto è "richiesta" (nessun autista l'ha ancora presa in carico),
+      // l'evento nasce "proposto" — chiunque l'abbia scelta, anche un autista
+      // che questa volta vuole fare il passeggero; in ogni altro caso nasce
+      // subito "attivo" (vedi SPEC §4.1).
+      const stato = mezzo === 'auto_richiesta' ? 'proposto' : 'attivo'
 
       const { data: nuovoEvento, error: erroreEvento } = await supabase
         .from('eventi')
@@ -88,26 +94,24 @@ export default function NuovoEvento() {
       }
 
       if (mezzo && mezzo !== 'dopo') {
-        if (mezzo === 'auto') {
-          if (isAutista) {
-            await supabase.from('viaggi').insert({
-              evento_id: nuovoEvento.id,
-              tipo: 'auto',
-              stato: 'confermato',
-              autista_id: user.id,
-              proposto_da: user.id,
-              posti_passeggeri: 4,
-            })
-          } else {
-            await supabase.from('viaggi').insert({
-              evento_id: nuovoEvento.id,
-              tipo: 'auto',
-              stato: 'in_attesa',
-              autista_id: null,
-              proposto_da: user.id,
-              posti_passeggeri: 4,
-            })
-          }
+        if (mezzo === 'auto_personale') {
+          await supabase.from('viaggi').insert({
+            evento_id: nuovoEvento.id,
+            tipo: 'auto',
+            stato: 'confermato',
+            autista_id: user.id,
+            proposto_da: user.id,
+            posti_passeggeri: 4,
+          })
+        } else if (mezzo === 'auto_richiesta') {
+          await supabase.from('viaggi').insert({
+            evento_id: nuovoEvento.id,
+            tipo: 'auto',
+            stato: 'in_attesa',
+            autista_id: null,
+            proposto_da: user.id,
+            posti_passeggeri: 4,
+          })
         } else {
           await supabase.from('viaggi').insert({
             evento_id: nuovoEvento.id,
@@ -215,11 +219,19 @@ export default function NuovoEvento() {
         <div className="space-y-3">
           <p className="text-text-muted text-sm mb-1">Come ci andate?</p>
 
+          {isAutista && (
+            <OpzioneMezzo
+              attiva={mezzo === 'auto_personale'}
+              onClick={() => setMezzo('auto_personale')}
+              icona={<IconaMezzo tipo="auto" />}
+              etichetta="Auto (personale)"
+            />
+          )}
           <OpzioneMezzo
-            attiva={mezzo === 'auto'}
-            onClick={() => setMezzo('auto')}
+            attiva={mezzo === 'auto_richiesta'}
+            onClick={() => setMezzo('auto_richiesta')}
             icona={<IconaMezzo tipo="auto" />}
-            etichetta={isAutista ? 'Auto (vostra)' : 'Auto (chiedi a un autista)'}
+            etichetta="Auto (chiedi agli altri)"
           />
           <OpzioneMezzo
             attiva={mezzo === 'treno'}
@@ -241,7 +253,7 @@ export default function NuovoEvento() {
           />
           <OpzioneMezzo attiva={mezzo === 'dopo'} onClick={() => setMezzo('dopo')} etichetta="Decidiamo dopo" />
 
-          {mezzo === 'auto' && !isAutista && (
+          {mezzo === 'auto_richiesta' && (
             <p className="text-xs text-text-muted px-1">
               L'evento resterà in proposta finché un autista non si rende disponibile.
             </p>
