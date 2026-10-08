@@ -21,6 +21,25 @@ export async function statoPermesso(): Promise<NotificationPermission | 'non-sup
   return Notification.permission
 }
 
+/** Timeout di sicurezza: se il service worker non diventa "ready" entro
+ * questo tempo (es. registrazione fallita o bloccata) non resta in attesa
+ * per sempre, fallisce con un errore chiaro invece di restare muto. */
+function conTimeout<T>(promessa: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error('timeout')), ms)
+    promessa.then(
+      (v) => {
+        clearTimeout(id)
+        resolve(v)
+      },
+      (e) => {
+        clearTimeout(id)
+        reject(e)
+      }
+    )
+  })
+}
+
 /** Attiva le notifiche push: chiede il permesso (solo dopo un tap dell'utente,
  * come richiesto dalla SPEC) e salva l'iscrizione su Supabase. */
 export async function attivaPush(userId: string): Promise<{ ok: boolean; errore?: string }> {
@@ -38,7 +57,15 @@ export async function attivaPush(userId: string): Promise<{ ok: boolean; errore?
     return { ok: false, errore: 'Configurazione mancante (chiave VAPID).' }
   }
 
-  const registrazione = await navigator.serviceWorker.ready
+  let registrazione: ServiceWorkerRegistration
+  try {
+    registrazione = await conTimeout(navigator.serviceWorker.ready, 8000)
+  } catch {
+    return {
+      ok: false,
+      errore: 'Il service worker non si è attivato. Prova a ricaricare la pagina (o a riaprire l\'app) e riprova.',
+    }
+  }
   let subscription = await registrazione.pushManager.getSubscription()
 
   if (!subscription) {
@@ -70,20 +97,33 @@ export async function attivaPush(userId: string): Promise<{ ok: boolean; errore?
 
 export async function disattivaPush(): Promise<void> {
   if (!pushSupportata()) return
-  const registrazione = await navigator.serviceWorker.ready
-  const subscription = await registrazione.pushManager.getSubscription()
-  if (!subscription) return
+  try {
+    const registrazione = await conTimeout(navigator.serviceWorker.ready, 8000)
+    const subscription = await registrazione.pushManager.getSubscription()
+    if (!subscription) return
 
-  const endpoint = subscription.endpoint
-  await subscription.unsubscribe()
-  await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint)
+    const endpoint = subscription.endpoint
+    await subscription.unsubscribe()
+    await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint)
+  } catch {
+    // Se il service worker non risponde non c'è comunque nulla da
+    // disattivare lato browser; l'eventuale riga resta in push_subscriptions
+    // ma l'edge function la ripulisce da sola al primo invio fallito (404/410).
+  }
 }
 
+/** Usata da AttivaNotifiche per decidere quale pulsante mostrare. Non resta
+ * mai in attesa per sempre: se il service worker non risponde entro il
+ * timeout, assume "non attivo" invece di lasciare la pagina muta. */
 export async function pushAttiva(): Promise<boolean> {
   if (!pushSupportata()) return false
-  const registrazione = await navigator.serviceWorker.ready
-  const subscription = await registrazione.pushManager.getSubscription()
-  return !!subscription
+  try {
+    const registrazione = await conTimeout(navigator.serviceWorker.ready, 5000)
+    const subscription = await registrazione.pushManager.getSubscription()
+    return !!subscription
+  } catch {
+    return false
+  }
 }
 
 function base64UrlToUint8Array(base64Url: string): Uint8Array {

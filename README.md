@@ -17,7 +17,7 @@ Ti servirà creare, tutti gratis:
 
 Tieni questa pagina aperta: ogni sezione ti dice esattamente dove cliccare.
 
-> **Hai già un progetto Trasferta in produzione e hai solo bisogno dell'ultimo aggiornamento?** Non devi rifare tutta la guida: vai su Supabase → **SQL Editor → New query**, incolla ed esegui **nell'ordine** `0008_notifiche_viaggi.sql`, poi `0009_profilo_custom.sql`, poi `0010_costo_viaggio.sql`, poi `0011_promemoria_e_notifiche.sql` (sono gli unici nuovi, i precedenti li hai già lanciati — uno alla volta, **Run** e passa al successivo). Poi ridistribuisci il frontend su Netlify (basta una nuova push su GitHub, o **Deploys → Trigger deploy**). Fine.
+> **Hai già un progetto Trasferta in produzione e hai solo bisogno dell'ultimo aggiornamento?** Non devi rifare tutta la guida: vai su Supabase → **SQL Editor → New query**, incolla ed esegui **nell'ordine** `0008_notifiche_viaggi.sql`, poi `0009_profilo_custom.sql`, poi `0010_costo_viaggio.sql`, poi `0011_promemoria_e_notifiche.sql`, poi `0012_realtime_delete_fix.sql` (sono gli unici nuovi, i precedenti li hai già lanciati — uno alla volta, **Run** e passa al successivo). Poi ridistribuisci il frontend su Netlify (basta una nuova push su GitHub, o **Deploys → Trigger deploy**). Fine.
 
 ---
 
@@ -26,7 +26,7 @@ Tieni questa pagina aperta: ogni sezione ti dice esattamente dove cliccare.
 1. Vai su [supabase.com](https://supabase.com), crea un account e poi un **nuovo progetto** (scegli una password per il database e tienila da parte, servirà raramente ma è bene salvarla).
 2. Aspetta che il progetto finisca di provisionarsi (un paio di minuti).
 3. Nel menu a sinistra vai su **SQL Editor** → **New query**.
-4. Apri, nell'ordine, i file dentro `supabase/migrations/` di questo repository (`0001_schema.sql`, `0002_rls.sql`, `0003_rpc.sql`, `0004_notifiche.sql`, `0005_drive.sql`, `0006_link_biglietto.sql`, `0007_realtime.sql`, `0008_notifiche_viaggi.sql`, `0009_profilo_custom.sql`, `0010_costo_viaggio.sql`, `0011_promemoria_e_notifiche.sql`), incolla il contenuto di ciascuno nell'editor e premi **Run**. Uno alla volta, nell'ordine numerico: ognuno si appoggia al precedente.
+4. Apri, nell'ordine, i file dentro `supabase/migrations/` di questo repository (`0001_schema.sql`, `0002_rls.sql`, `0003_rpc.sql`, `0004_notifiche.sql`, `0005_drive.sql`, `0006_link_biglietto.sql`, `0007_realtime.sql`, `0008_notifiche_viaggi.sql`, `0009_profilo_custom.sql`, `0010_costo_viaggio.sql`, `0011_promemoria_e_notifiche.sql`, `0012_realtime_delete_fix.sql`), incolla il contenuto di ciascuno nell'editor e premi **Run**. Uno alla volta, nell'ordine numerico: ognuno si appoggia al precedente.
 5. Vai su **Project Settings → API**. Ti serviranno due valori più avanti:
    - **Project URL**
    - **anon public key**
@@ -216,6 +216,7 @@ Le foto restano nello spazio gratuito di chi ha creato l'evento (15GB per accoun
 ## Problemi comuni
 
 - **"App non verificata" bloccante, non c'è "Avanzate"**: controlla di aver aggiunto quell'email tra gli utenti di test (punto 2.1.3).
+- **Un elemento sparisce/cambia per chi lo fa ma non per gli altri, finché non ricaricano a mano (in particolare: eliminare un viaggio)**: causa diversa dal punto successivo. Di default Postgres, in un DELETE, dice a Realtime solo la chiave primaria della riga cancellata — se il frontend è sottoscritto con un filtro su un'altra colonna (come `evento_id` su `viaggi`), quel filtro non si può valutare e l'evento viene scartato in silenzio. La migration `0012_realtime_delete_fix.sql` lo corregge impostando `replica identity full` sulle tabelle che ne hanno bisogno; se noti lo stesso sintomo altrove (un altro DELETE che non si propaga), è la stessa causa — serve la stessa correzione sulla tabella coinvolta.
 - **Gli aggiornamenti si vedono solo ricaricando la pagina a mano**: hai saltato (o va rifatta) la migration `0007_realtime.sql` — le tabelle create via SQL non entrano da sole nel canale Realtime di Supabase, vanno aggiunte esplicitamente. Vai su SQL Editor e lancia:
   ```sql
   alter publication supabase_realtime add table public.profiles;
@@ -226,6 +227,9 @@ Le foto restano nello spazio gratuito di chi ha creato l'evento (15GB per accoun
   alter publication supabase_realtime add table public.voti_evento;
   ```
 - **Le notifiche push non arrivano su iPhone**: su iOS funzionano solo se l'app è stata aggiunta alla schermata Home (richiede iOS 16.4+). L'app lo spiega da sola nella pagina Profilo.
+- **Nella pagina Profilo non compare affatto il riquadro delle notifiche** (né il pulsante né un messaggio, proprio nulla): bug corretto in `src/lib/push.ts`/`src/components/AttivaNotifiche.tsx` — prima, se il service worker non rispondeva per qualunque motivo, il riquadro restava vuoto per sempre invece di mostrare un errore. Con l'ultimo aggiornamento, entro 5 secondi compare sempre o il pulsante o un messaggio esplicativo. Se dopo l'aggiornamento vedi ancora nulla:
+  1. Apri `https://<il-tuo-sito>.netlify.app/sw.js` direttamente nel browser del telefono: deve mostrare del codice JavaScript. Se vedi una pagina bianca, un 404, o la stessa app (segno che il redirect SPA ha intercettato la richiesta), il service worker non è stato pubblicato correttamente — controlla il log dell'ultimo deploy Netlify per errori nella build.
+  2. Se `/sw.js` si apre correttamente ma il riquadro resta comunque vuoto, prova a disinstallare l'app dalla schermata Home (su iPhone) o a cancellare i dati del sito (su Android, impostazioni del browser → Siti → il tuo sito → Cancella dati) e riaprire da zero: a volte un service worker installato da una versione precedente resta bloccato in uno stato vecchio.
 - **Le notifiche compaiono nella sezione "Notifiche" dell'app ma la push sul telefono non arriva mai**: significa che la scrittura in `notifiche` funziona (è quella che la pagina legge) ma la catena notifiche → `invia-push` → push non arriva in fondo. Controlla in ordine:
   1. **Hai davvero premuto "Attiva notifiche" dal Profilo, sul telefono, e accettato il permesso del browser/sistema?** Senza quel passaggio non esiste nessuna iscrizione da usare. Verifica in SQL Editor:
      ```sql

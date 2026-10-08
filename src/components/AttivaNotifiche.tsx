@@ -17,7 +17,9 @@ export default function AttivaNotifiche() {
   const [errore, setErrore] = useState<string | null>(null)
 
   useEffect(() => {
-    pushAttiva().then(setAttiva)
+    pushAttiva()
+      .then(setAttiva)
+      .catch(() => setAttiva(false))
   }, [])
 
   // Su iPhone le push funzionano solo se l'app è stata aggiunta alla Home
@@ -39,8 +41,24 @@ export default function AttivaNotifiche() {
     )
   }
 
-  if (!pushSupportata()) return null
-  if (!user || attiva === null) return null
+  // Prima queste due condizioni facevano sparire del tutto il riquadro,
+  // senza nessun indizio del perché — un browser davvero non supportato
+  // resta raro, meglio dirlo esplicitamente che lasciare la pagina muta.
+  if (!pushSupportata()) {
+    return (
+      <div className="card">
+        <p className="text-text-muted text-sm">Le notifiche push non sono supportate su questo browser.</p>
+      </div>
+    )
+  }
+  if (!user) return null
+  if (attiva === null) {
+    return (
+      <div className="card">
+        <p className="text-text-muted text-sm">Controllo lo stato delle notifiche…</p>
+      </div>
+    )
+  }
 
   async function alterna() {
     setCaricamento(true)
