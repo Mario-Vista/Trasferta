@@ -41,6 +41,8 @@ export interface Evento {
 export interface EventoConMedia extends Evento {
   media_stelle: number
   numero_voti: number
+  creatore_nome: string | null
+  creatore_avatar_url: string | null
 }
 
 export interface VotoEvento {

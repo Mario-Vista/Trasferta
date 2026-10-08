@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { Loader2, MapPin, User, Trophy, ChevronLeft, Ban, Trash2 } from 'lucide-react'
+import { Loader2, MapPin, User, Trophy, ChevronLeft, Trash2, Skull } from 'lucide-react'
 import { useEvento, eliminaEvento, eliminaEventoDefinitivo } from '@/hooks/useEvento'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfilo } from '@/hooks/useProfilo'
@@ -76,7 +76,7 @@ export default function EventoDettaglio() {
               className="text-text-muted active:scale-90 transition-transform duration-150"
               aria-label="Annulla evento"
             >
-              <Ban size={18} />
+              <Trash2 size={18} />
             </button>
           )}
           {isAdmin && !azione && (
@@ -85,7 +85,7 @@ export default function EventoDettaglio() {
               className="text-danger active:scale-90 transition-transform duration-150"
               aria-label="Elimina definitivamente (admin)"
             >
-              <Trash2 size={18} />
+              <Skull size={18} />
             </button>
           )}
         </div>
@@ -132,7 +132,14 @@ export default function EventoDettaglio() {
       )}
 
       <h1 className="font-display text-2xl leading-tight mb-1">{evento.nome}</h1>
-      <p className="text-text-muted mb-3">{formattaDataEstesa(evento.data)}</p>
+      <p className="text-text-muted mb-1">{formattaDataEstesa(evento.data)}</p>
+
+      {evento.creatore_nome && (
+        <div className="flex items-center gap-1.5 mb-3">
+          <CreatoreAvatar nome={evento.creatore_nome} avatarUrl={evento.creatore_avatar_url} />
+          <span className="text-sm text-text-muted">Creato da {evento.creatore_nome}</span>
+        </div>
+      )}
 
       <a
         href={linkMaps}
@@ -188,6 +195,20 @@ export default function EventoDettaglio() {
           <AggiungiViaggio eventoId={evento.id} isAutista={isAutista} onFatto={ricarica} />
         )}
       </div>
+    </div>
+  )
+}
+
+function CreatoreAvatar({ nome, avatarUrl }: { nome: string; avatarUrl: string | null }) {
+  if (avatarUrl) {
+    return <img src={avatarUrl} alt="" className="rounded-full object-cover shrink-0" style={{ width: 20, height: 20 }} />
+  }
+  return (
+    <div
+      className="rounded-full bg-accent/20 text-accent font-semibold flex items-center justify-center shrink-0"
+      style={{ width: 20, height: 20, fontSize: 8 }}
+    >
+      {nome.charAt(0).toUpperCase()}
     </div>
   )
 }
