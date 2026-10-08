@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-bg text-text font-sans antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-heading font-bold;
+  }
+
+  /* Rispetta le zone sicure su iPhone (notch / home indicator). */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-card px-4 py-3 font-heading font-semibold transition-colors duration-150 min-h-[44px];
+  }
+  .btn-primary {
+    @apply btn bg-accent text-bg hover:brightness-95 active:brightness-90 disabled:opacity-40 disabled:pointer-events-none;
+  }
+  .btn-secondary {
+    @apply btn bg-surface text-text border border-border hover:border-text-muted disabled:opacity-40 disabled:pointer-events-none;
+  }
+  .btn-danger {
+    @apply btn bg-danger/10 text-danger border border-danger/30 hover:bg-danger/20;
+  }
+  .card {
+    @apply bg-surface border border-border rounded-card p-4;
+  }
+  .input {
+    @apply w-full rounded-card bg-bg border border-border px-4 py-3 text-text placeholder:text-text-muted outline-none focus:border-accent transition-colors duration-150 min-h-[44px];
+  }
+  .label {
+    @apply text-sm font-medium text-text-muted mb-1.5 block;
+  }
+  .badge {
+    @apply inline-flex items-center justify-center rounded-full bg-accent text-bg text-xs font-bold min-w-[18px] h-[18px] px-1;
+  }
+}
