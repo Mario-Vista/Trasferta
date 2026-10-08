@@ -28,9 +28,6 @@ export default defineConfig({
           { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      injectManifest: {
-        injectionPoint: undefined,
-      },
       devOptions: {
         enabled: true,
         type: 'module',
