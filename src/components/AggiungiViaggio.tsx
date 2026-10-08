@@ -8,9 +8,13 @@ const MEZZI_NON_AUTO: TipoViaggio[] = ['treno', 'pullman', 'aereo']
 
 /**
  * Azioni per aggiungere un viaggio a un evento esistente:
- * - autisti/admin: aggiungono direttamente la propria auto (confermata)
+ * - chiunque sia autista: può aggiungere direttamente la propria auto (confermata)
+ *   ("Auto (personale)"), oppure chiedere comunque che sia qualcun altro a guidare
+ *   ("Auto (chiedi agli altri)") — anche un autista, per questo evento, può voler
+ *   essere passeggero.
+ * - chi non è autista: solo "Auto (chiedi agli altri)", in attesa che un autista
+ *   la prenda in carico.
  * - chiunque: aggiunge treno/pullman/aereo (confermato, nessun limite posti)
- * - passeggeri: chiedono un'auto (in attesa di approvazione da un autista)
  * I dettagli (orario, durata, costi) si riempiono dopo con "Modifica" sulla card.
  */
 export default function AggiungiViaggio({
@@ -100,14 +104,12 @@ export default function AggiungiViaggio({
 
       {isAutista && (
         <button disabled={caricamento} onClick={aggiungiAutoMia} className="btn-secondary w-full justify-start">
-          <IconaMezzo tipo="auto" /> Aggiungi la mia auto
+          <IconaMezzo tipo="auto" /> Auto (personale)
         </button>
       )}
-      {!isAutista && (
-        <button disabled={caricamento} onClick={chiediAuto} className="btn-secondary w-full justify-start">
-          <IconaMezzo tipo="auto" /> Chiedi un'auto
-        </button>
-      )}
+      <button disabled={caricamento} onClick={chiediAuto} className="btn-secondary w-full justify-start">
+        <IconaMezzo tipo="auto" /> Auto (chiedi agli altri)
+      </button>
 
       {MEZZI_NON_AUTO.map((tipo) => (
         <button

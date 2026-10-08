@@ -5,7 +5,12 @@ import { supabase } from '@/lib/supabase'
 import { formattaDataBreve } from '@/lib/format'
 
 export default function Proposte() {
-  const { proposte } = useProposteList()
+  // "ricarica" non va mai scartato: prima veniva ignorato e la lista si
+  // aggiornava solo se/quando arrivava l'evento realtime, col risultato che
+  // dopo "Ci vado io" la card restava lì finché non si ricaricava a mano.
+  // Ora si aggiorna subito (e la sottoscrizione realtime resta comunque
+  // attiva per aggiornare la lista a chi la sta guardando da un altro telefono).
+  const { proposte, ricarica } = useProposteList()
   const [caricamentoId, setCaricamentoId] = useState<string | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
 
@@ -15,6 +20,7 @@ export default function Proposte() {
     const { error } = await supabase.rpc('approva_proposta', { p_viaggio_id: viaggioId })
     setCaricamentoId(null)
     if (error) setErrore(error.message)
+    else await ricarica()
   }
 
   async function rifiuta(viaggioId: string) {
@@ -23,6 +29,7 @@ export default function Proposte() {
     const { error } = await supabase.rpc('rifiuta_proposta', { p_viaggio_id: viaggioId })
     setCaricamentoId(null)
     if (error) setErrore(error.message)
+    else await ricarica()
   }
 
   return (

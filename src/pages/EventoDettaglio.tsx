@@ -158,7 +158,13 @@ export default function EventoDettaglio() {
 
       <div className="space-y-3">
         {(viaggi ?? []).map((v) => (
-          <ViaggioCard key={v.id} viaggio={v} eventoPassato={passato} luogoEvento={evento.luogo} />
+          <ViaggioCard
+            key={v.id}
+            viaggio={v}
+            eventoPassato={passato}
+            luogoEvento={evento.luogo}
+            ricarica={ricarica}
+          />
         ))}
 
         {(viaggi ?? []).length === 0 && (

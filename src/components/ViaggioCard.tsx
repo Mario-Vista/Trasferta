@@ -18,10 +18,16 @@ export default function ViaggioCard({
   viaggio,
   eventoPassato,
   luogoEvento,
+  ricarica,
 }: {
   viaggio: ViaggioConDettagli
   eventoPassato: boolean
   luogoEvento: string
+  /** Richiamata subito dopo ogni azione riuscita (accetta/rifiuta/prenota/esco/
+   * rimuovi), senza aspettare l'evento realtime: su chi ha appena agito, quello
+   * stesso evento a volte arriva con un attimo di ritardo e la card restava
+   * ferma com'era finché non si ricaricava la pagina a mano. */
+  ricarica: () => void | Promise<void>
 }) {
   const { user } = useAuth()
   const { isAdmin } = useProfilo()
@@ -52,6 +58,7 @@ export default function ViaggioCard({
     setCaricamento(true)
     try {
       await azione()
+      await ricarica()
     } catch (e) {
       setErroreAzione(e instanceof Error ? e.message : 'Qualcosa è andato storto.')
     } finally {
@@ -231,6 +238,7 @@ export default function ViaggioCard({
           viaggio={viaggio}
           luogoEvento={luogoEvento}
           onChiudi={() => setModificaAperta(false)}
+          ricarica={ricarica}
         />
       )}
     </div>

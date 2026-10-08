@@ -7,10 +7,12 @@ export default function ModificaViaggio({
   viaggio,
   luogoEvento,
   onChiudi,
+  ricarica,
 }: {
   viaggio: ViaggioConDettagli
   luogoEvento: string
   onChiudi: () => void
+  ricarica: () => void | Promise<void>
 }) {
   const isAuto = viaggio.tipo === 'auto'
   // Proposta auto ancora senza autista: chi l'ha proposta può solo ritirarla
@@ -93,6 +95,7 @@ export default function ModificaViaggio({
       setErrore('Non sono riuscito a salvare. Riprova.')
       return
     }
+    await ricarica()
     onChiudi()
   }
 
@@ -101,6 +104,7 @@ export default function ModificaViaggio({
     setEliminazione(true)
     try {
       await eliminaViaggio(viaggio.id)
+      await ricarica()
       onChiudi()
     } catch (e) {
       setErrore(e instanceof Error ? e.message : 'Non sono riuscito a togliere il viaggio.')
