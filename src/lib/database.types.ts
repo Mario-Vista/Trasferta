@@ -13,6 +13,8 @@ export interface Profile {
   email: string
   nome: string
   avatar_url: string | null
+  nome_google: string | null
+  avatar_url_google: string | null
   ruolo: Ruolo
   created_at: string
 }
@@ -33,6 +35,7 @@ export interface Evento {
   drive_folder_url: string | null
   drive_folder_id: string | null
   drive_cartella_proprietario: string | null
+  promemoria_inviato: boolean
 }
 
 export interface EventoConMedia extends Evento {
@@ -60,8 +63,7 @@ export interface Viaggio {
   durata_minuti: number | null
   distanza_km: number | null
   durata_calcolata: boolean
-  costo_carburante: number | null
-  costo_pedaggio: number | null
+  costo_viaggio: number | null
   costo_biglietto: number | null
   link_biglietto: string | null
   note: string | null

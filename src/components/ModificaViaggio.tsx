@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Loader2, Route as RouteIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import type { ViaggioConDettagli } from '@/hooks/useEvento'
+import { eliminaViaggio, type ViaggioConDettagli } from '@/hooks/useEvento'
 
 export default function ModificaViaggio({
   viaggio,
@@ -13,6 +13,12 @@ export default function ModificaViaggio({
   onChiudi: () => void
 }) {
   const isAuto = viaggio.tipo === 'auto'
+  // Proposta auto ancora senza autista: chi l'ha proposta può solo ritirarla
+  // (non ha senso riempire orario/costi/note per un viaggio che nessun
+  // autista ha ancora approvato, e non avrebbe comunque i permessi per
+  // salvarli: la RLS su viaggi lascia modificare un'auto 'in_attesa' solo a
+  // un autista, vedi 0002_rls.sql).
+  const soloRitiro = isAuto && viaggio.stato === 'in_attesa'
 
   const [ora, setOra] = useState(toLocalInput(viaggio.ora_partenza))
   const [durataOre, setDurataOre] = useState(
@@ -25,13 +31,15 @@ export default function ModificaViaggio({
   const [calcolato, setCalcolato] = useState(viaggio.durata_calcolata)
   const [calcolando, setCalcolando] = useState(false)
   const [erroreCalcolo, setErroreCalcolo] = useState<string | null>(null)
-  const [carburante, setCarburante] = useState(viaggio.costo_carburante?.toString() ?? '')
-  const [pedaggio, setPedaggio] = useState(viaggio.costo_pedaggio?.toString() ?? '')
+  const [costoViaggio, setCostoViaggio] = useState(viaggio.costo_viaggio?.toString() ?? '')
   const [biglietto, setBiglietto] = useState(viaggio.costo_biglietto?.toString() ?? '')
   const [linkBiglietto, setLinkBiglietto] = useState(viaggio.link_biglietto ?? '')
   const [note, setNote] = useState(viaggio.note ?? '')
   const [salvataggio, setSalvataggio] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
+  const [confermaElimina, setConfermaElimina] = useState(false)
+  const [eliminazione, setEliminazione] = useState(false)
+  const nessunoConfermato = !viaggio.partecipazioni.some((p) => p.stato === 'confermata')
 
   async function calcolaPercorso() {
     setCalcolando(true)
@@ -73,8 +81,7 @@ export default function ModificaViaggio({
         durata_minuti: minuti,
         distanza_km: isAuto ? parseEuro(distanzaKm) : null,
         durata_calcolata: calcolato,
-        costo_carburante: isAuto ? parseEuro(carburante) : null,
-        costo_pedaggio: isAuto ? parseEuro(pedaggio) : null,
+        costo_viaggio: isAuto ? parseEuro(costoViaggio) : null,
         costo_biglietto: !isAuto ? parseEuro(biglietto) : null,
         link_biglietto: !isAuto ? linkBiglietto.trim() || null : null,
         note: note.trim() || null,
@@ -87,6 +94,66 @@ export default function ModificaViaggio({
       return
     }
     onChiudi()
+  }
+
+  async function elimina() {
+    setErrore(null)
+    setEliminazione(true)
+    try {
+      await eliminaViaggio(viaggio.id)
+      onChiudi()
+    } catch (e) {
+      setErrore(e instanceof Error ? e.message : 'Non sono riuscito a togliere il viaggio.')
+      setEliminazione(false)
+    }
+  }
+
+  if (soloRitiro) {
+    return (
+      <div className="border-t border-border mt-3 pt-3 space-y-3">
+        <p className="text-sm text-text-muted">
+          In attesa che un autista accetti. Puoi ritirarla finché nessuno l'ha ancora presa in carico.
+        </p>
+
+        {errore && <p className="text-danger text-sm">{errore}</p>}
+
+        {!confermaElimina ? (
+          <div className="flex gap-2">
+            <button className="btn-secondary flex-1" onClick={onChiudi}>
+              Chiudi
+            </button>
+            <button
+              className="flex-1 rounded-xl bg-danger text-white font-semibold py-2.5 active:scale-95 transition-transform duration-150"
+              onClick={() => setConfermaElimina(true)}
+            >
+              Ritira la proposta
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm text-text-muted text-center">
+              Sicuro? Un autista non potrà più accettarla.
+            </p>
+            <div className="flex gap-2">
+              <button
+                className="btn-secondary flex-1"
+                onClick={() => setConfermaElimina(false)}
+                disabled={eliminazione}
+              >
+                No, torna indietro
+              </button>
+              <button
+                className="flex-1 rounded-xl bg-danger text-white font-semibold py-2.5 active:scale-95 transition-transform duration-150 disabled:opacity-50"
+                onClick={elimina}
+                disabled={eliminazione}
+              >
+                {eliminazione ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Sì, ritira'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -168,31 +235,17 @@ export default function ModificaViaggio({
       </div>
 
       {isAuto ? (
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label">Benzina €</label>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={carburante}
-              onChange={(e) => setCarburante(e.target.value)}
-              className="input"
-              placeholder="0"
-            />
-          </div>
-          <div>
-            <label className="label">Casello €</label>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={pedaggio}
-              onChange={(e) => setPedaggio(e.target.value)}
-              className="input"
-              placeholder="0"
-            />
-          </div>
+        <div>
+          <label className="label">Costo totale viaggio (benzina + casello) €</label>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={costoViaggio}
+            onChange={(e) => setCostoViaggio(e.target.value)}
+            className="input"
+            placeholder="0"
+          />
         </div>
       ) : (
         <div>
@@ -237,13 +290,58 @@ export default function ModificaViaggio({
       {errore && <p className="text-danger text-sm">{errore}</p>}
 
       <div className="flex gap-2">
-        <button className="btn-secondary flex-1" onClick={onChiudi} disabled={salvataggio}>
-          Annulla
+        <button className="btn-secondary flex-1" onClick={onChiudi} disabled={salvataggio || eliminazione}>
+          Chiudi
         </button>
-        <button className="btn-primary flex-1" onClick={salva} disabled={salvataggio}>
+        <button className="btn-primary flex-1" onClick={salva} disabled={salvataggio || eliminazione}>
           Salva
         </button>
       </div>
+
+      {viaggio.stato === 'confermato' && (
+        <div className="border-t border-border pt-3">
+          {!confermaElimina ? (
+            <button
+              type="button"
+              className="text-danger text-sm w-full text-center py-1"
+              onClick={() => setConfermaElimina(true)}
+              disabled={eliminazione}
+            >
+              {nessunoConfermato ? 'Elimina questo viaggio' : 'Annulla questo viaggio'}
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-text-muted text-center">
+                {nessunoConfermato
+                  ? 'Sicuro? Verrà tolto del tutto, nessuno è ancora confermato.'
+                  : 'Sicuro? Chi era confermato verrà avvisato.'}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  className="btn-secondary flex-1"
+                  onClick={() => setConfermaElimina(false)}
+                  disabled={eliminazione}
+                >
+                  No, torna indietro
+                </button>
+                <button
+                  className="flex-1 rounded-xl bg-danger text-white font-semibold py-2.5 active:scale-95 transition-transform duration-150 disabled:opacity-50"
+                  onClick={elimina}
+                  disabled={eliminazione}
+                >
+                  {eliminazione ? (
+                    <Loader2 size={16} className="animate-spin mx-auto" />
+                  ) : nessunoConfermato ? (
+                    'Sì, elimina'
+                  ) : (
+                    'Sì, annulla'
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

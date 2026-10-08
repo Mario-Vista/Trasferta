@@ -7,6 +7,7 @@ import {
   lasciaViaggio,
   prenotaViaggio,
   rifiutaPasseggero,
+  rimuoviPasseggero,
   type ViaggioConDettagli,
 } from '@/hooks/useEvento'
 import { formattaDurata, formattaEuro, formattaKm, formattaOrario } from '@/lib/format'
@@ -36,13 +37,13 @@ export default function ViaggioCard({
   const postiLiberi = isAuto ? postiTotali - confermati.length : null
 
   const sonoAutista = viaggio.autista_id === meId
-  const possoModificare = sonoAutista || (!isAuto && viaggio.proposto_da === meId) || isAdmin
+  const miaPropostaInAttesa = isAuto && viaggio.stato === 'in_attesa' && viaggio.proposto_da === meId
+  const possoModificare =
+    sonoAutista || (!isAuto && viaggio.proposto_da === meId) || miaPropostaInAttesa || isAdmin
   const mieRichiesteOAutista = sonoAutista
   const miaPartecipazione = viaggio.partecipazioni.find((p) => p.user_id === meId)
 
-  const costoTotale = isAuto
-    ? (viaggio.costo_carburante ?? 0) + (viaggio.costo_pedaggio ?? 0)
-    : viaggio.costo_biglietto ?? null
+  const costoTotale = isAuto ? viaggio.costo_viaggio : viaggio.costo_biglietto
   const quotaATesta =
     isAuto && costoTotale !== null ? costoTotale / (confermati.length + 1) : costoTotale
 
@@ -136,6 +137,20 @@ export default function ViaggioCard({
             <div key={p.user_id} className="flex items-center gap-1 bg-bg rounded-full pl-1 pr-2 py-1">
               <Avatar persona={p.profiles} size={20} />
               <span className="text-xs">{p.profiles.nome.split(' ')[0]}</span>
+              {isAuto && sonoAutista && (
+                <button
+                  disabled={caricamento}
+                  onClick={() => {
+                    if (confirm(`Togliere ${p.profiles.nome} dalla tua auto?`)) {
+                      gestisci(() => rimuoviPasseggero(viaggio.id, p.user_id))
+                    }
+                  }}
+                  className="text-text-muted active:scale-90 transition-transform duration-150 disabled:opacity-40"
+                  aria-label={`Togli ${p.profiles.nome}`}
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
           ))}
         </div>

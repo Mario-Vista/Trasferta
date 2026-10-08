@@ -28,8 +28,7 @@ export interface ViaggioConDettagli {
   durata_minuti: number | null
   distanza_km: number | null
   durata_calcolata: boolean
-  costo_carburante: number | null
-  costo_pedaggio: number | null
+  costo_viaggio: number | null
   costo_biglietto: number | null
   link_biglietto: string | null
   note: string | null
@@ -42,7 +41,7 @@ export interface ViaggioConDettagli {
 const SELECT_VIAGGIO = `
   id, evento_id, tipo, stato, autista_id, proposto_da, posti_passeggeri,
   ora_partenza, partenza, durata_minuti, distanza_km, durata_calcolata,
-  costo_carburante, costo_pedaggio, costo_biglietto, link_biglietto, note, created_at,
+  costo_viaggio, costo_biglietto, link_biglietto, note, created_at,
   autista:profiles!viaggi_autista_id_fkey(id, nome, avatar_url),
   proponente:profiles!viaggi_proposto_da_fkey(id, nome, avatar_url),
   partecipazioni(user_id, stato, created_at, profiles(id, nome, avatar_url))
@@ -145,6 +144,24 @@ export async function rifiutaPasseggero(viaggioId: string, userId: string) {
     p_viaggio_id: viaggioId,
     p_user_id: userId,
   })
+  if (error) throw new Error(tradurriErrore(error.message))
+}
+
+export async function rimuoviPasseggero(viaggioId: string, userId: string) {
+  const { error } = await supabase.rpc('rimuovi_passeggero', {
+    p_viaggio_id: viaggioId,
+    p_user_id: userId,
+  })
+  if (error) throw new Error(tradurriErrore(error.message))
+}
+
+export async function eliminaViaggio(viaggioId: string) {
+  const { error } = await supabase.rpc('elimina_viaggio', { p_viaggio_id: viaggioId })
+  if (error) throw new Error(tradurriErrore(error.message))
+}
+
+export async function eliminaEvento(eventoId: string) {
+  const { error } = await supabase.rpc('elimina_evento', { p_evento_id: eventoId })
   if (error) throw new Error(tradurriErrore(error.message))
 }
 
