@@ -92,7 +92,13 @@ async function geocodifica(
   // Senza boundary.country: le trasferte possono essere anche fuori Italia.
 
   const res = await fetch(url.toString())
-  if (!res.ok) return null
+  // Un errore HTTP di ORS (chiave non valida, quota finita) non è "luogo non
+  // trovato": lo rilanciamo così finisce nei log e risponde 502.
+  if (!res.ok) {
+    const corpo = await res.text().catch(() => '')
+    console.error(`geocodifica ORS: HTTP ${res.status} ${res.statusText} — ${corpo.slice(0, 500)}`)
+    throw new Error(`ORS geocodifica ha risposto ${res.status}`)
+  }
 
   const dati = await res.json()
   const primo = dati?.features?.[0]
@@ -121,7 +127,11 @@ async function calcolaDirezioni(
     }),
   })
 
-  if (!res.ok) return null
+  if (!res.ok) {
+    const corpo = await res.text().catch(() => '')
+    console.error(`calcolaDirezioni ORS: HTTP ${res.status} ${res.statusText} — ${corpo.slice(0, 500)}`)
+    throw new Error(`ORS directions ha risposto ${res.status}`)
+  }
 
   const dati = await res.json()
   const sommario = dati?.routes?.[0]?.summary

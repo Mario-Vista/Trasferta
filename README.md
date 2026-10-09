@@ -2,7 +2,7 @@
 
 App per organizzare le trasferte della crew: calendario eventi, prenotazioni auto/treno/pullman/aereo, proposte da approvare, notifiche, cartelle foto automatiche su Google Drive. Tutto gratuito.
 
-Questa guida presume che tu non abbia mai usato Supabase, Google Cloud o Netlify: segui i passi in ordine, non serve altro.
+Questa guida presume che tu non abbia mai usato Supabase, Google Cloud o Cloudflare: segui i passi in ordine, non serve altro.
 
 ---
 
@@ -12,12 +12,12 @@ Ti servirà creare, tutti gratis:
 1. Un account [Supabase](https://supabase.com) (il database e il backend)
 2. Un progetto su [Google Cloud Console](https://console.cloud.google.com) (login con Google + foto su Drive)
 3. Una chiave gratuita su [OpenRouteService](https://openrouteservice.org) (calcolo del percorso in auto)
-4. Un account [Netlify](https://netlify.com) (dove vive il sito)
+4. Un account [Cloudflare](https://dash.cloudflare.com/sign-up) (dove vive il sito, su Cloudflare Pages)
 5. Un repository GitHub con questo codice
 
 Tieni questa pagina aperta: ogni sezione ti dice esattamente dove cliccare.
 
-> **Hai già un progetto Trasferta in produzione e hai solo bisogno dell'ultimo aggiornamento?** Non devi rifare tutta la guida: vai su Supabase → **SQL Editor → New query**, incolla ed esegui **nell'ordine** `0008_notifiche_viaggi.sql`, poi `0009_profilo_custom.sql`, poi `0010_costo_viaggio.sql`, poi `0011_promemoria_e_notifiche.sql`, poi `0012_realtime_delete_fix.sql` (sono gli unici nuovi, i precedenti li hai già lanciati — uno alla volta, **Run** e passa al successivo). Poi ridistribuisci il frontend su Netlify (basta una nuova push su GitHub, o **Deploys → Trigger deploy**). Fine.
+> **Hai già un progetto Trasferta in produzione e hai solo bisogno dell'ultimo aggiornamento?** Non devi rifare tutta la guida: vai su Supabase → **SQL Editor → New query**, incolla ed esegui **nell'ordine** `0008_notifiche_viaggi.sql`, poi `0009_profilo_custom.sql`, poi `0010_costo_viaggio.sql`, poi `0011_promemoria_e_notifiche.sql`, poi `0012_realtime_delete_fix.sql` (sono gli unici nuovi, i precedenti li hai già lanciati — uno alla volta, **Run** e passa al successivo). Poi ridistribuisci il frontend su Cloudflare Pages (basta una nuova push su GitHub, o **Deployments → ⋯ sull'ultimo deploy → Retry deployment**). Fine.
 
 ---
 
@@ -177,25 +177,30 @@ e guarda cosa è successo nell'ultima chiamata.
 
 ---
 
-## 7. Deploy del frontend su Netlify
+## 7. Deploy del frontend su Cloudflare Pages
 
 1. Metti il codice di questo progetto su un repository GitHub (se non l'hai già fatto).
-2. Su [netlify.com](https://netlify.com), **Add new site → Import an existing project**, collega il repository.
+2. Su [dash.cloudflare.com](https://dash.cloudflare.com), **Workers & Pages → Create → Pages → Connect to Git**, collega il repository.
 3. Impostazioni di build:
+   - Framework preset: **None** (oppure **Vite**, è uguale)
    - Build command: `npm run build`
-   - Publish directory: `dist`
-4. In **Site settings → Environment variables**, aggiungi:
+   - Build output directory: `dist`
+4. Sempre in questa schermata, apri **Environment variables** e aggiungi (se il progetto è già creato le trovi in **Settings → Variables and Secrets**):
    - `VITE_SUPABASE_URL` = il Project URL di Supabase (punto 1.5)
    - `VITE_SUPABASE_ANON_KEY` = la anon public key (punto 1.5)
    - `VITE_VAPID_PUBLIC_KEY` = la Public Key VAPID (punto 4)
-5. Fai partire il deploy (il file `public/_redirects` già nel repository dice a Netlify di servire sempre `index.html`, necessario perché l'app è una SPA).
-6. Prendi l'URL che Netlify ti assegna (es. `https://trasferta-crew.netlify.app`) e torna un attimo su Google Cloud Console → le tue credenziali OAuth → aggiungi quell'URL anche tra le **Origini JavaScript autorizzate**. Poi torna su Supabase → **Authentication → URL Configuration** e aggiungi lo stesso URL in **Redirect URLs**.
+
+   Vengono lette **durante la build**: se le aggiungi o le cambi dopo, serve un nuovo deploy perché abbiano effetto.
+5. Fai partire il deploy (**Save and Deploy**). Cloudflare Pages serve già da solo `index.html` per qualunque percorso, cosa necessaria perché l'app è una SPA (il file `public/_redirects` nel repository fa la stessa cosa).
+6. Prendi l'URL che Cloudflare ti assegna (es. `https://trasferta-crew.pages.dev`) e torna un attimo su Google Cloud Console → le tue credenziali OAuth → aggiungi quell'URL anche tra le **Origini JavaScript autorizzate**. Poi torna su Supabase → **Authentication → URL Configuration**: metti lo stesso URL come **Site URL** e aggiungilo anche in **Redirect URLs** (insieme a `https://trasferta-crew.pages.dev/profilo`, usato quando si collega Google Drive). Se in precedenza il sito stava su un altro dominio (es. Netlify), togli da entrambe le parti il vecchio URL.
+
+> In alternativa al collegamento con GitHub puoi pubblicare dal tuo computer: `npm run build` e poi `npx wrangler pages deploy dist`. In questo caso le variabili `VITE_...` vengono prese dal tuo file `.env` locale al momento della build.
 
 ---
 
 ## 8. Primo accesso e admin
 
-1. Apri il sito Netlify, **"Entra con Google"** (deve essere un'email che hai aggiunto come utente di test al punto 2.1.3).
+1. Apri il sito su Cloudflare Pages, **"Entra con Google"** (deve essere un'email che hai aggiunto come utente di test al punto 2.1.3).
 2. Vedrai la schermata "L'admin deve ancora abilitarti": è normale, nessuno ha ancora un ruolo.
 3. Torna su Supabase → **SQL Editor** e lancia:
    ```sql
@@ -228,7 +233,7 @@ Le foto restano nello spazio gratuito di chi ha creato l'evento (15GB per accoun
   ```
 - **Le notifiche push non arrivano su iPhone**: su iOS funzionano solo se l'app è stata aggiunta alla schermata Home (richiede iOS 16.4+). L'app lo spiega da sola nella pagina Profilo.
 - **Nella pagina Profilo non compare affatto il riquadro delle notifiche** (né il pulsante né un messaggio, proprio nulla): bug corretto in `src/lib/push.ts`/`src/components/AttivaNotifiche.tsx` — prima, se il service worker non rispondeva per qualunque motivo, il riquadro restava vuoto per sempre invece di mostrare un errore. Con l'ultimo aggiornamento, entro 5 secondi compare sempre o il pulsante o un messaggio esplicativo. Se dopo l'aggiornamento vedi ancora nulla:
-  1. Apri `https://<il-tuo-sito>.netlify.app/sw.js` direttamente nel browser del telefono: deve mostrare del codice JavaScript. Se vedi una pagina bianca, un 404, o la stessa app (segno che il redirect SPA ha intercettato la richiesta), il service worker non è stato pubblicato correttamente — controlla il log dell'ultimo deploy Netlify per errori nella build.
+  1. Apri `https://<il-tuo-sito>.pages.dev/sw.js` direttamente nel browser del telefono: deve mostrare del codice JavaScript. Se vedi una pagina bianca, un 404, o la stessa app (segno che il redirect SPA ha intercettato la richiesta), il service worker non è stato pubblicato correttamente — controlla il log dell'ultimo deploy su Cloudflare Pages (**Deployments → View details**) per errori nella build.
   2. Se `/sw.js` si apre correttamente ma il riquadro resta comunque vuoto, prova a disinstallare l'app dalla schermata Home (su iPhone) o a cancellare i dati del sito (su Android, impostazioni del browser → Siti → il tuo sito → Cancella dati) e riaprire da zero: a volte un service worker installato da una versione precedente resta bloccato in uno stato vecchio.
 - **Le notifiche compaiono nella sezione "Notifiche" dell'app ma la push sul telefono non arriva mai**: significa che la scrittura in `notifiche` funziona (è quella che la pagina legge) ma la catena notifiche → `invia-push` → push non arriva in fondo. Controlla in ordine:
   1. **Hai davvero premuto "Attiva notifiche" dal Profilo, sul telefono, e accettato il permesso del browser/sistema?** Senza quel passaggio non esiste nessuna iscrizione da usare. Verifica in SQL Editor:

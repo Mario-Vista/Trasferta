@@ -51,8 +51,25 @@ export default function ModificaViaggio({
     })
     setCalcolando(false)
 
-    if (error || data?.errore) {
-      setErroreCalcolo(data?.errore ?? 'Non sono riuscito a calcolare il percorso. Inseriscilo a mano.')
+    if (error) {
+      // Con status diverso da 2xx il client Supabase non mette il corpo in
+      // `data`: il messaggio della Edge Function va letto dalla Response.
+      let messaggio = 'Non sono riuscito a calcolare il percorso. Inseriscilo a mano.'
+      const contesto = (error as { context?: Response }).context
+      if (contesto) {
+        try {
+          const corpo = await contesto.json()
+          if (corpo?.errore) messaggio = corpo.errore
+        } catch {
+          // corpo non leggibile come JSON: resta il messaggio generico
+        }
+      }
+      setErroreCalcolo(messaggio)
+      return
+    }
+
+    if (data?.errore) {
+      setErroreCalcolo(data.errore)
       return
     }
 
